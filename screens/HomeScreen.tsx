@@ -8,24 +8,163 @@ import {
   Modal,
   Animated,
   Easing,
+  ScrollView,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import WalletBalanceCard from './components/WalletBalanceCard';
 import ReceiversPopup from './ReceiversPopup';
+import { PaystackProvider, usePaystack } from 'react-native-paystack-webview';
 
-const HomeScreen = () => {
+// Define available currencies
+const CURRENCIES = [
+  { code: 'NGN', symbol: '₦', name: 'Nigerian Naira' },
+  { code: 'USD', symbol: '$', name: 'US Dollar' },
+  { code: 'GHS', symbol: 'GH₵', name: 'Ghanaian Cedi' },
+  { code: 'ZAR', symbol: 'R', name: 'South African Rand' },
+  { code: 'KES', symbol: 'KSh', name: 'Kenyan Shilling' },
+];
+
+
+const TopUpButton = () => {
+  const { popup } = usePaystack();
+  const [showTopUpModal, setShowTopUpModal] = useState(false);
+  const [amount, setAmount] = useState('');
+  const [selectedCurrency, setSelectedCurrency] = useState(CURRENCIES[0]);
+ 
+  const handleTopUp = () => {
+    if (!amount || parseFloat(amount) <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+
+    // Convert to smallest currency unit if needed
+    // Paystack expects amounts in kobo (NGN), cents (USD), etc.
+    const amountInSmallestUnit = parseFloat(amount) * 100;
+
+    popup.newTransaction({
+      amount: amountInSmallestUnit,
+      email: "test@example.com", // Replace with actual user email
+      currency: selectedCurrency.code,
+      reference: `TEST_${Date.now()}`,
+      onSuccess: (response) => {
+        console.log("Payment successful:", response);
+        setShowTopUpModal(false);
+        setAmount('');
+        // this is where you would update the wallet balance in your state/database
+        alert(`Top-up of ${selectedCurrency.symbol}${amount} successful!`);
+      },
+      onCancel: () => {
+        console.log("Payment cancelled");
+      },
+      onError: (error) => {
+        console.log("Payment error:", error);
+        alert("Payment failed. Please try again.");
+      },
+      onLoad: () => console.log("Webview Loaded"),
+    });
+  };
+
+  return (
+    <>
+      <TouchableOpacity 
+        style={styles.actionButton} 
+        onPress={() => setShowTopUpModal(true)}
+      >
+        <Ionicons name="add-circle-outline" size={24} color="#007aff" />
+        <Text style={styles.actionLabel}>Top-Up</Text>
+      </TouchableOpacity>
+
+      {/* Top Up Modal */}
+      <Modal
+        visible={showTopUpModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTopUpModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.topUpModalContent}>
+            <Text style={styles.modalTitle}>Top Up Your Wallet</Text>
+            
+            {/* Amount Input */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Amount</Text>
+              <View style={styles.amountInputWrapper}>
+                <Text style={styles.currencySymbol}>{selectedCurrency.symbol}</Text>
+                <TextInput
+                  style={styles.amountInput}
+                  value={amount}
+                  onChangeText={setAmount}
+                  placeholder="0.00"
+                  keyboardType="numeric"
+                  placeholderTextColor="#888"
+                />
+              </View>
+            </View>
+            
+            {/* Currency Selection */}
+            <Text style={styles.inputLabel}>Select Currency</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.currencyList}
+            >
+              {CURRENCIES.map((currency) => (
+                <TouchableOpacity
+                  key={currency.code}
+                  style={[
+                    styles.currencyItem,
+                    selectedCurrency.code === currency.code && styles.selectedCurrency
+                  ]}
+                  onPress={() => setSelectedCurrency(currency)}
+                >
+                  <Text style={[
+                    styles.currencyText,
+                    selectedCurrency.code === currency.code && styles.selectedCurrencyText
+                  ]}>
+                    {currency.symbol} {currency.code}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            
+            {/* Action Buttons */}
+            <View style={styles.actionButtons}>
+              <TouchableOpacity 
+                style={styles.cancelButton} 
+                onPress={() => setShowTopUpModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.proceedButton}
+                onPress={handleTopUp}
+              >
+                <Text style={styles.proceedButtonText}>Proceed to Payment</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+};
+
+// Main content component that includes the UI
+const HomeContent = () => {
   const [showModal, setShowModal] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  const [showPopup, setShowPopup] = useState(false);  // Initially false to hide
+  const [showPopup, setShowPopup] = useState(false);
   const [selectedReceiver, setSelectedReceiver] = useState(null);
 
   const walletBalance = 15000;
 
   const transactions = [
-    { id: '1', title: 'Received from Sarah', amount: 5000 },
-    { id: '2', title: 'Top-Up via Card', amount: 10000 },
-    { id: '3', title: 'Sent to John', amount: -2000 },
+    { id: '1', title: 'Received from Sarah', amount: 5000, currency: 'NGN' },
+    { id: '2', title: 'Top-Up via Card', amount: 10000, currency: 'NGN' },
+    { id: '3', title: 'Sent to John', amount: -2000, currency: 'NGN' },
+    { id: '4', title: 'Top-Up via PayPal', amount: 50, currency: 'USD' },
   ];
 
   useEffect(() => {
@@ -56,6 +195,12 @@ const HomeScreen = () => {
     ).start();
   }, []);
 
+  // Function to get currency symbol
+  const getCurrencySymbol = (currencyCode) => {
+    const currency = CURRENCIES.find(c => c.code === currencyCode);
+    return currency ? currency.symbol : '₦'; // Default to Naira if not found
+  };
+
   return (
     <View style={styles.container}>
       {/* Wallet Balance */}
@@ -68,10 +213,7 @@ const HomeScreen = () => {
           <Text style={styles.actionLabel}>Receive</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="add-circle-outline" size={24} color="#007aff" />
-          <Text style={styles.actionLabel}>Top-Up</Text>
-        </TouchableOpacity>
+        <TopUpButton />
       </View>
 
       {/* Transactions */}
@@ -91,7 +233,9 @@ const HomeScreen = () => {
               <Text style={styles.transactionTitle}>{item.title}</Text>
             </View>
             <Text style={[styles.transactionAmount, { color: item.amount > 0 ? 'green' : 'red' }]}>
-              {item.amount > 0 ? '+' : '-'}₦{Math.abs(item.amount).toLocaleString()}
+              {item.amount > 0 ? '+' : '-'}
+              {getCurrencySymbol(item.currency)}
+              {Math.abs(item.amount).toLocaleString()}
             </Text>
           </View>
         )}
@@ -128,6 +272,21 @@ const HomeScreen = () => {
         }}
       />
     </View>
+  );
+};
+
+// Main component that provides the PaystackProvider
+const HomeScreen = () => {
+  return (
+    <PaystackProvider
+      publicKey='pk_test_d09656f4089f34964d47df80fd493cd9073264d4'
+      debug
+      // Note: Default currency is set here, but can be overridden per transaction
+      currency='NGN'
+      defaultChannels={["bank_transfer", "bank", "ussd", "card"]}
+    >
+      <HomeContent />
+    </PaystackProvider>
   );
 };
 
@@ -195,6 +354,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     elevation: 1,
   },
+  transactionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   transactionTitle: {
     fontSize: 16,
     color: '#333',
@@ -233,5 +396,104 @@ const styles = StyleSheet.create({
   closeButton: {
     marginTop: 10,
     padding: 10,
+  },
+  // Top Up Modal Styles
+  topUpModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 14,
+    width: '95%',
+    margin: 10,
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e1e2f',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    color: '#555',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  amountInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 50,
+  },
+  currencySymbol: {
+    fontSize: 18,
+    color: '#333',
+    marginRight: 6,
+  },
+  amountInput: {
+    flex: 1,
+    fontSize: 18,
+    color: '#333',
+    height: '100%',
+  },
+  currencyList: {
+    flexDirection: 'row',
+    marginBottom: 24,
+    paddingBottom: 8,
+  },
+  currencyItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    marginRight: 10,
+  },
+  selectedCurrency: {
+    backgroundColor: '#2E7D32',
+  },
+  currencyText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  selectedCurrencyText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  cancelButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    width: '45%',
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#555',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  proceedButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#14C11D',
+    width: '50%',
+    alignItems: 'center',
+  },
+  proceedButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '500',
   },
 });
