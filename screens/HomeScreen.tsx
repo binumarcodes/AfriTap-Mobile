@@ -12,6 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import WalletBalanceCard from './components/WalletBalanceCard';
 import ReceiversPopup from './ReceiversPopup';
+import TopUpButton from './components/Payment'; // Fixed import path
+import { PaystackProvider } from 'react-native-paystack-webview';
 
 const HomeScreen = () => {
   const [showModal, setShowModal] = useState(false);
@@ -57,77 +59,84 @@ const HomeScreen = () => {
   }, []);
 
   return (
-    <View style={styles.container}>
-      {/* Wallet Balance */}
-      <WalletBalanceCard balance={15000} />
+    <PaystackProvider
+      publicKey='pk_test_d09656f4089f34964d47df80fd493cd9073264d4'
+      debug
+      // Note: Default currency is set here, but can be overridden per transaction
+      currency='NGN'
+      defaultChannels={["bank_transfer", "bank", "ussd", "card"]}
+    >
 
-      {/* Actions */}
-      <View style={styles.actions}>
-        <TouchableOpacity style={styles.actionButton} onPress={() => setShowModal(true)}>
-          <Ionicons name="download-outline" size={24} color="#007aff" />
-          <Text style={styles.actionLabel}>Receive</Text>
-        </TouchableOpacity>
+      <View style={styles.container}>
+        {/* Wallet Balance */}
+        <WalletBalanceCard balance={15000} />
 
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="add-circle-outline" size={24} color="#007aff" />
-          <Text style={styles.actionLabel}>Top-Up</Text>
-        </TouchableOpacity>
-      </View>
+        {/* Actions */}
+        <View style={styles.actions}>
+          <TouchableOpacity style={styles.actionButton} onPress={() => setShowModal(true)}>
+            <Ionicons name="download-outline" size={24} color="#007aff" />
+            <Text style={styles.actionLabel}>Receive</Text>
+          </TouchableOpacity>
 
-      {/* Transactions */}
-      <Text style={styles.historyTitle}>Transaction History</Text>
-      <FlatList
-        data={transactions}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.transactionItem}>
-            <View style={styles.transactionLeft}>
-              <Ionicons
-                name={item.amount > 0 ? 'arrow-up-outline' : 'arrow-down-outline'}
-                size={20}
-                color={item.amount > 0 ? 'green' : 'red'}
-                style={{ marginRight: 10 }}
-              />
-              <Text style={styles.transactionTitle}>{item.title}</Text>
-            </View>
-            <Text style={[styles.transactionAmount, { color: item.amount > 0 ? 'green' : 'red' }]}>
-              {item.amount > 0 ? '+' : '-'}₦{Math.abs(item.amount).toLocaleString()}
-            </Text>
-          </View>
-        )}
-        contentContainerStyle={{ paddingBottom: 40 }}
-      />
-
-      {/* Receive Modal */}
-      <Modal
-        visible={showModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Animated.View style={[styles.pulseCircle, { transform: [{ scale: pulseAnim }] }]}>
-              <Ionicons name="wifi" size={48} color="#007aff" />
-            </Animated.View>
-            <Text style={styles.awaitingText}>Awaiting sender...</Text>
-            <TouchableOpacity onPress={() => setShowModal(false)} style={styles.closeButton}>
-              <Text style={{ color: '#007aff', fontWeight: '600' }}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
+          {/* Direct component usage */}
+          <TopUpButton />
         </View>
-      </Modal>
 
-      {/* Receivers Popup will show after 10 seconds */}
-      <ReceiversPopup
-        visible={showPopup}
-        onClose={() => setShowPopup(false)}
-        onSelectReceiver={(receiver, { amount, description, password }) => {
-          console.log('Send to:', receiver.name, amount, description, password);
-          // handle transfer logic here
-        }}
-      />
-    </View>
+        {/* Transactions */}
+        <Text style={styles.historyTitle}>Transaction History</Text>
+        <FlatList
+          data={transactions}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.transactionItem}>
+              <View style={styles.transactionLeft}>
+                <Ionicons
+                  name={item.amount > 0 ? 'arrow-up-outline' : 'arrow-down-outline'}
+                  size={20}
+                  color={item.amount > 0 ? 'green' : 'red'}
+                  style={{ marginRight: 10 }}
+                />
+                <Text style={styles.transactionTitle}>{item.title}</Text>
+              </View>
+              <Text style={[styles.transactionAmount, { color: item.amount > 0 ? 'green' : 'red' }]}>
+                {item.amount > 0 ? '+' : '-'}₦{Math.abs(item.amount).toLocaleString()}
+              </Text>
+            </View>
+          )}
+          contentContainerStyle={{ paddingBottom: 40 }}
+        />
+
+        {/* Receive Modal */}
+        <Modal
+          visible={showModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Animated.View style={[styles.pulseCircle, { transform: [{ scale: pulseAnim }] }]}>
+                <Ionicons name="wifi" size={48} color="#007aff" />
+              </Animated.View>
+              <Text style={styles.awaitingText}>Awaiting sender...</Text>
+              <TouchableOpacity onPress={() => setShowModal(false)} style={styles.closeButton}>
+                <Text style={{ color: '#007aff', fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Receivers Popup will show after 10 seconds */}
+        <ReceiversPopup
+          visible={showPopup}
+          onClose={() => setShowPopup(false)}
+          onSelectReceiver={(receiver, { amount, description, password }) => {
+            console.log('Send to:', receiver.name, amount, description, password);
+            // handle transfer logic here
+          }}
+        />
+      </View>
+    </PaystackProvider>
   );
 };
 
@@ -194,6 +203,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 10,
     elevation: 1,
+  },
+  transactionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   transactionTitle: {
     fontSize: 16,
