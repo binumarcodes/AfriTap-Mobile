@@ -6,7 +6,7 @@ const fetchDailyInfo = async (
   try {
     const response = await fetch("https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct", {
       headers: {
-        Authorization: `Bearer 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`, // Replace with your actual Hugging Face token
+        Authorization: `Bearer SECRET_KEY`, 
         "Content-Type": "application/json",
       },
       method: "POST",
